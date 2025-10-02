@@ -1,147 +1,199 @@
 ﻿using System;
-using System.Globalization;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Text;
+using System.IO;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
-namespace QuanLyThongTinSinhVien1
+namespace Lab05_Bai1
 {
     public partial class Form1 : Form
     {
+        private string currentFile = null;   // Đường dẫn file hiện tại
+        private bool isSaved = true;         // Trạng thái đã lưu hay chưa
+
         public Form1()
         {
             InitializeComponent();
         }
 
+        // ================== FORM LOAD ==================
         private void Form1_Load(object sender, EventArgs e)
         {
-            if (cmbChuyenNganh.Items.Count > 0)
-                cmbChuyenNganh.SelectedIndex = 0;
-
-
-            radNu.Checked = true;
-
-            CapNhatThongKe();
-        }
-
-        private void grpThongTin_Enter(object sender, EventArgs e)
-        {
-     
-        }
-
-        private void label3_Click(object sender, EventArgs e)
-        {
 
         }
 
-        private void button2_Click(object sender, EventArgs e)
+        // ================== NEW ==================
+        private void tsbNew_Click(object sender, EventArgs e)
         {
+            richText.Clear();
+            currentFile = null;
+            isSaved = true;
+            toolStripComboBox1.Text = "Tahoma";
+            toolStripComboBox2.Text = "14";
+            richText.Font = new Font("Tahoma", 14);
 
+            UpdateWordCount();
         }
 
-        private void btnThemSua_Click(object sender, EventArgs e)
+        // ================== OPEN ==================
+        private void tsbOpen_Click(object sender, EventArgs e)
         {
-            try
+            using (OpenFileDialog ofd = new OpenFileDialog())
             {
-                if (string.IsNullOrWhiteSpace(txtMaSinhVien.Text) ||
-                    string.IsNullOrWhiteSpace(txtHoTen.Text) ||
-                    string.IsNullOrWhiteSpace(txtDiemTB.Text))
+                ofd.Filter = "Rich Text File|*.rtf|Text File|*.txt|All files|*.*";
+                if (ofd.ShowDialog() == DialogResult.OK)
                 {
-                    MessageBox.Show("Vui lòng nhập đầy đủ thông tin!", "Thông báo",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
+                    string ext = Path.GetExtension(ofd.FileName).ToLower();
+                    if (ext == ".rtf")
+                        richText.LoadFile(ofd.FileName, RichTextBoxStreamType.RichText);
+                    else
+                        richText.LoadFile(ofd.FileName, RichTextBoxStreamType.PlainText);
 
-                if (!double.TryParse(txtDiemTB.Text.Trim(),
-                        NumberStyles.Any, CultureInfo.InvariantCulture, out double diem))
+                    currentFile = ofd.FileName;
+                    isSaved = true;
+
+                    UpdateWordCount();
+                }
+            }
+        }
+
+        // ================== SAVE ==================
+        private void tsbSave_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(currentFile))
+            {
+                using (SaveFileDialog sfd = new SaveFileDialog())
                 {
-                    MessageBox.Show("Điểm phải là số!", "Lỗi",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
+                    sfd.Filter = "Rich Text File|*.rtf|Text File|*.txt";
+                    if (sfd.ShowDialog() == DialogResult.OK)
+                    {
+                        SaveToFile(sfd.FileName);
+                    }
                 }
+            }
+            else
+            {
+                SaveToFile(currentFile);
+            }
+        }
 
-                if (diem < 0 || diem > 10)
-                {
-                    MessageBox.Show("Điểm phải trong khoảng 0 - 10!", "Lỗi",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
+        private void SaveToFile(string filePath)
+        {
+            string ext = Path.GetExtension(filePath).ToLower();
+            if (ext == ".txt")
+                richText.SaveFile(filePath, RichTextBoxStreamType.PlainText);
+            else
+                richText.SaveFile(filePath, RichTextBoxStreamType.RichText);
 
-                string maSV = txtMaSinhVien.Text.Trim();
-                int rowIndex = TimDongTheoMaSV(maSV);
+            currentFile = filePath;
+            isSaved = true;
+            MessageBox.Show("Đã lưu thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
 
-                if (rowIndex == -1)
-                {
-             
-                    int newRow = dgvSinhVien.Rows.Add();
-                    CapNhatDong(newRow);
-                    MessageBox.Show("Thêm mới dữ liệu thành công!");
-                }
+        // ================== BOLD ==================
+        private void tsbBold_Click(object sender, EventArgs e)
+        {
+            ToggleFontStyle(FontStyle.Bold);
+        }
+
+        // ================== ITALIC ==================
+        private void tsbItalic_Click(object sender, EventArgs e)
+        {
+            ToggleFontStyle(FontStyle.Italic);
+        }
+
+        // ================== UNDERLINE ==================
+        private void tsbUnderline_Click(object sender, EventArgs e)
+        {
+            ToggleFontStyle(FontStyle.Underline);
+        }
+
+        private void ToggleFontStyle(FontStyle style)
+        {
+            if (richText.SelectionFont != null)
+            {
+                Font currentFont = richText.SelectionFont;
+                FontStyle newStyle;
+
+                if (currentFont.Style.HasFlag(style))
+                    newStyle = currentFont.Style & ~style;
                 else
-                {
+                    newStyle = currentFont.Style | style;
 
-                    CapNhatDong(rowIndex);
-                    MessageBox.Show("Cập nhật dữ liệu thành công!");
-                }
-
-                CapNhatThongKe();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Lỗi: " + ex.Message);
+                richText.SelectionFont = new Font(currentFont.FontFamily, currentFont.Size, newStyle);
             }
         }
 
-        private void dgvSinhVien_CellClick(object sender, DataGridViewCellEventArgs e)
+        // ================== FONT COMBOBOX ==================
+        private void toolStripComboBox1_Click(object sender, EventArgs e)
         {
-            if (e.RowIndex >= 0)
+            string fontName = toolStripComboBox1.Text;
+            float size = richText.SelectionFont?.Size ?? 14;
+            FontStyle style = richText.SelectionFont?.Style ?? FontStyle.Regular;
+
+            richText.SelectionFont = new Font(fontName, size, style);
+        }
+
+        // ================== SIZE COMBOBOX ==================
+        private void toolStripComboBox2_Click(object sender, EventArgs e)
+        {
+            if (int.TryParse(toolStripComboBox2.Text, out int newSize))
             {
-                var row = dgvSinhVien.Rows[e.RowIndex];
+                string fontName = richText.SelectionFont?.FontFamily.Name ?? "Tahoma";
+                FontStyle style = richText.SelectionFont?.Style ?? FontStyle.Regular;
 
-                txtMaSinhVien.Text = row.Cells["colMaSV"].Value?.ToString();
-                txtHoTen.Text = row.Cells["colHoTen"].Value?.ToString();
-                txtDiemTB.Text = row.Cells["colDiemTB"].Value?.ToString();
-                cmbChuyenNganh.Text = row.Cells["colChuyenNganh"].Value?.ToString();
-
-                string gt = row.Cells["colGioiTinh"].Value?.ToString();
-                radNam.Checked = (gt == "Nam");
-                radNu.Checked = (gt == "Nữ");
+                richText.SelectionFont = new Font(fontName, newSize, style);
             }
         }
 
-        private int TimDongTheoMaSV(string maSV)
+        // ================== ĐẾM TỪ ==================
+        private void richText_TextChanged(object sender, EventArgs e)
         {
-            for (int i = 0; i < dgvSinhVien.Rows.Count; i++)
-            {
-                if (dgvSinhVien.Rows[i].Cells["colMaSV"].Value?.ToString() == maSV)
-                {
-                    return i;
-                }
-            }
-            return -1;
+            isSaved = false;
+            UpdateWordCount();
         }
 
-        private void CapNhatDong(int rowIndex)
+        private void UpdateWordCount()
         {
-            dgvSinhVien.Rows[rowIndex].Cells["colMaSV"].Value = txtMaSinhVien.Text.Trim();
-            dgvSinhVien.Rows[rowIndex].Cells["colHoTen"].Value = txtHoTen.Text.Trim();
-            dgvSinhVien.Rows[rowIndex].Cells["colGioiTinh"].Value = radNam.Checked ? "Nam" : "Nữ";
-            dgvSinhVien.Rows[rowIndex].Cells["colDiemTB"].Value =
-                double.Parse(txtDiemTB.Text.Trim(), CultureInfo.InvariantCulture).ToString("0.00");
-            dgvSinhVien.Rows[rowIndex].Cells["colChuyenNganh"].Value = cmbChuyenNganh.Text;
+            string text = richText.Text.Trim();
+            int count = text == "" ? 0 : Regex.Split(text, @"\s+").Length;
+            toolStripStatusLabel1.Text = "Số từ: " + count;
         }
 
-        // 🔹 Đếm lại Nam/Nữ
-        private void CapNhatThongKe()
+        private void toolStripStatusLabel1_Click(object sender, EventArgs e)
         {
-            int nam = 0, nu = 0;
-            foreach (DataGridViewRow row in dgvSinhVien.Rows)
+            MessageBox.Show("Đây là thanh trạng thái. " + toolStripStatusLabel1.Text,
+                    "Thông tin",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+        }
+
+        private void Form1_Load_1(object sender, EventArgs e)
+        {
+            // Font mặc định
+            toolStripComboBox1.Text = "Tahoma";
+            toolStripComboBox2.Text = "14";
+
+            // Nạp tất cả font trong máy
+            foreach (FontFamily font in new InstalledFontCollection().Families)
             {
-                string gt = row.Cells["colGioiTinh"].Value?.ToString();
-                if (gt == "Nam") nam++;
-                if (gt == "Nữ") nu++;
+                toolStripComboBox1.Items.Add(font.Name);
             }
 
-            lblTongNam.Text = $"Tổng SV Nam: {nam}";
-            lblTongNu.Text = $"Tổng SV Nữ: {nu}";
+            // Nạp các size chữ phổ biến
+            List<int> listSize = new List<int> { 8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72 };
+            foreach (var s in listSize)
+            {
+                toolStripComboBox2.Items.Add(s);
+            }
+
+            // Set font mặc định cho RichTextBox
+            richText.Font = new Font("Tahoma", 14);
+
+            UpdateWordCount();
+
         }
     }
 }
